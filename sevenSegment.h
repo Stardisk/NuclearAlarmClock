@@ -85,33 +85,8 @@ class sevenSegment{
       if(state < 2){ dots[dotNumber] = state;}
       else{ dots[dotNumber] = (dots[dotNumber]) ? 0:1;    }
     }    
-    //ожидание ввода с ПК для немедленного показа этих данных на дисплее
-    byte waitForInput(){
-      if (Serial.available() > 0) {  //если есть доступные данные
-        delay(50);   //подождем пока все данные дойдут
-        String inputData;
-        inputData.reserve(64);
-        byte incomingByte = 0;
-        while(Serial.available() > 0){
-          incomingByte = Serial.read();
-          if(incomingByte != 10) { inputData += char(incomingByte);}
-        }    
-        
-        if(inputData.substring(0, 4) == "/dot"){
-          byte dotNumber = inputData.substring(5,6).toInt();           
-          setDot(dotNumber, 2);
-        }    
-
-        if(inputData.substring(0, 5) == "/exit"){
-          return 2;
-        }           
-
-        sendData(inputData);
-        return 1;
-      }
-      return 0;
-    }
-    //получение данных с микроконтроллера для их отрисовки на экранчике
+    
+    //получение данных с микроконтроллера для их отрисовки на экранчике. Посылается единожды и будет крутиться на экранчике, пока не придут новые данные
     void sendData(String inputData){
       if(rsActive){ rsActive = false;} //отключаем предыдущую бегущую строку, если она была
       //задаем новые данные
