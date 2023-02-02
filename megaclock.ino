@@ -2,12 +2,14 @@
 #include "analogButton.h";
 
 sevenSegment mainIndicator;
-analogButton btn0(0, 1023);
-analogButton btn1(0, 685);
+analogButton btnOK(0, 1023);
+analogButton btnPLUS(0, 933);
+analogButton btnMINUS(0, 856);
+analogButton btnSET(0, 791);
 
 byte hour, minute, second;
 byte currentMode; 
-// 0 - часы, 1 - показ минут и секунд,  201 - прием данных с ПК и вывод их на экран, 202 - тестер кнопок
+// 0 - часы, 1 - показ минут и секунд,  201 - прием данных с ПК и вывод их на экран, 202 - тестер кнопок, 203 - тестер уровней кнопок
 
 void setup(){
   Serial.begin(9600);
@@ -31,8 +33,15 @@ void waitForInput(){
     //вывод всех входящих данных на семисегментник
     if(inputData.substring(0, 5) == "/segm"){   currentMode = 201;}      
     
-    if(inputData.substring(0, 4) == "/btn"){
-      currentMode = 202;
+    if(inputData.substring(0, 4) == "/btn"){  currentMode = 202;} 
+
+    if(inputData.substring(0, 5) == "/btna"){ currentMode = 203;} 
+
+    if(inputData.substring(0, 4) == "/ref"){   
+      byte rate = inputData.substring(5,7).toInt();
+      Serial.print("changed refresh rate to ");
+      Serial.println(rate);
+      mainIndicator.setRefreshRate(rate);
     } 
     
     //управление точками семисегментника: /dot [номер точки] [0/1/2 == выкл/вкл/перекл]
@@ -53,32 +62,30 @@ void waitForInput(){
 void loop(){  
   waitForInput();  
 
-  if(currentMode == 202){
-    mainIndicator.sendData(String(btn0.currentButtonLevel));
-    if(btn0.poll()){
-      Serial.println("btn0");
-    }
+  if(currentMode == 202){    
+    if(btnOK.poll()){ Serial.println("OK");}
+    if(btnPLUS.poll()){ Serial.println("plus");}
+    if(btnMINUS.poll()){ Serial.println("minus");}
+    if(btnSET.poll()){ Serial.println("set");}
+    
+  }
 
-    if(btn1.poll()){
-      Serial.println("btn1");
-    }   
+  if(currentMode == 203){
+    mainIndicator.sendData(String(analogRead(0)));
   }
       
   if(currentMode == 0){
-    if(btn0.poll()){
-    mainIndicator.sendData("btn0");
-
-    if(btn1.poll()){
-      mainIndicator.sendData("btn1");
-    }
-    /*if(currentMode == 1){ currentMode = 0;}
-    else if(currentMode == 0){ currentMode = 1;}     
-    btn0.ignoreHolding = true;
-    */
-  }
-
-  
+    /*if(btnOK.poll()){ mainIndicator.sendData("OK");}
+    if(btnPLUS.poll()){ mainIndicator.sendData("plus");}
+    if(btnMINUS.poll()){ mainIndicator.sendData("min");}
+    if(btnSET.poll()){ mainIndicator.sendData("set");}*/
+   
+    if(btnOK.poll()){ currentMode = 1; btnOK.ignoreHolding = true;}     
   } 
+
+  if(currentMode == 1){
+    if(btnOK.poll()){ currentMode = 0; btnOK.ignoreHolding = true;}     
+  }
   
   clock();
   mainIndicator.dynamicIndication();
@@ -109,7 +116,7 @@ void clock(){
       mainIndicator.setDot(2, 2);
     }
     else if(currentMode == 1){
-      formattedTime  += "  "; formattedTime += addTimeZero(second);    
+      formattedTime  += addTimeZero(minute); formattedTime += addTimeZero(second);    
       mainIndicator.sendData(formattedTime);      
       mainIndicator.setDot(2, 1);
     }

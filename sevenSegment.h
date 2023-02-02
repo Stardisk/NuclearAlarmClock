@@ -13,30 +13,39 @@ class sevenSegment{
       0b01100111, 0b01010000, 0b01101101, 0b01111000, 0b00011100, 0b00011100, 0b01101010, 0b01110110, 0b01101110, 0b01011011  // "Q", "R", "S", "T", "U", "V", "W", "X", "Y", "Z"
     };
     bool dots[4];
+    byte enabledDigit = 0;    
+    byte refreshRate = 5;
+    byte skippedCalls = 0;
     bool rsActive = false;
     String rsData, staticData;     
 
     //посылает на экран 4 символа, которые необходимо отрисовать
     void sendDataToDisplay(String data){      
-      data.toUpperCase();
-      for(byte indN = 0; indN <=3; indN++){            
+      if(skippedCalls == refreshRate){
         //отключаем все сегменты  
         digitalWrite(2, HIGH);
         digitalWrite(3, HIGH);
         digitalWrite(4, HIGH);
-        digitalWrite(5, HIGH);    
-        delay(1);
-        
+        digitalWrite(5, HIGH);  
+      }
+
+      if(skippedCalls == refreshRate+1){
+        data.toUpperCase();
+        enabledDigit++;
+        if(enabledDigit > 3){ enabledDigit = 0;}
         //включаем нужные сгементы
         for (int i=6;i<=12;i++){
-          digitalWrite(i, bitRead(digitsArr[data[3-indN]], i-6));
+          digitalWrite(i, bitRead(digitsArr[data[3-enabledDigit]], i-6));
         }
         //точка
-        digitalWrite(13, dots[indN]);
+        digitalWrite(13, dots[enabledDigit]);
         //зажигаем нужную цифру
-        digitalWrite(indN+2, LOW);   
-        delay(3);
-      }  
+        digitalWrite(enabledDigit+2, LOW);           
+        skippedCalls = 0;
+      }     
+
+      skippedCalls++;
+       
     }
 
     //анимированная бегущая строка
@@ -60,7 +69,7 @@ class sevenSegment{
       }           
     }    
 
-  public:
+  public:    
     sevenSegment(){
       rsData.reserve(128);
       staticData.reserve(4);     
@@ -99,4 +108,8 @@ class sevenSegment{
       if(rsActive){ runningString(rsData);}
       else{ sendDataToDisplay(staticData);  }   
     }  
+
+    void setRefreshRate(byte rate){
+      refreshRate = rate;
+    }
 };

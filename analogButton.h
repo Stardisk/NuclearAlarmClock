@@ -19,7 +19,7 @@ class analogButton{
     int poll(){      
       currentButtonLevel = analogRead(pin);      
       //кнопка нажата
-      if(currentButtonLevel > 0){            
+      if(currentButtonLevel > 50){            
         //смотрим, чтоб уровень кнопки не превышал максимальный для нее, но не был меньше, чем ее максимальный минус 10
         if((currentButtonLevel <= maxAnalogLevelOnPress) and (currentButtonLevel > (maxAnalogLevelOnPress - 10))){
           //нет времени нажатия - кнопку нажали только что
@@ -38,6 +38,7 @@ class analogButton{
             }
           }
         }        
+        else{ return 0;}
       }
       else{
         if(timeWhenPressed > 0) {
