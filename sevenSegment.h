@@ -53,14 +53,14 @@ class sevenSegment{
       static uint32_t rsTimer;
       static byte rsStartPos, rsDataLen;
       if(!rsActive){ 
-        rsStartPos = 3;
+        rsStartPos = 0;
         rsActive = true;
         rsTimer = millis();
         rsData = "   "; rsData += data.substring(0, 124);
         rsDataLen = rsData.length();    
       }    
       sendDataToDisplay(data.substring(rsStartPos, rsStartPos+4));
-      if(millis() - rsTimer > 500){
+      if(millis() - rsTimer > 750){
         rsTimer = millis();
         rsStartPos++;        
       }

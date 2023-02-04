@@ -6,8 +6,11 @@ sevenSegment mainIndicator;
 tumbler tmblrAlarmEnabled(1);
 
 byte hour, minute, second;
-byte currentMode; 
-// 0 - часы, 1 - показ минут и секунд,  201 - прием данных с ПК и вывод их на экран, 202 - тестер кнопок, 203 - тестер уровней кнопок
+byte currentMode; //ID текущего режима. от него зависит показания индикатора и реакция кнопок.
+// 0 - часы
+// 1 - показ минут и секунд
+// 2 - главное меню
+//  201 - прием данных с ПК и вывод их на экран, 202 - тестер кнопок, 203 - тестер уровней кнопок
 
 void setup(){
   Serial.begin(9600);
@@ -60,7 +63,7 @@ void waitForInput(){
 controlByButtons buttonControl;
 
 void loop(){  
-  waitForInput();    
+  waitForInput();      
 
   if(currentMode == 203){
     mainIndicator.sendData(String(analogRead(0)));
