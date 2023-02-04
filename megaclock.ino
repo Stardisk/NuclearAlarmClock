@@ -3,10 +3,6 @@
 #include "tumbler.h";
 
 sevenSegment mainIndicator;
-analogButton btnOK(0, 1023);
-analogButton btnPLUS(0, 933);
-analogButton btnMINUS(0, 856);
-analogButton btnSET(0, 791);
 tumbler tmblrAlarmEnabled(1);
 
 byte hour, minute, second;
@@ -15,8 +11,7 @@ byte currentMode;
 
 void setup(){
   Serial.begin(9600);
-  delay(100);         
-
+  delay(100);
   mainIndicator.setDot(2, 1);  
 }
 
@@ -34,10 +29,10 @@ void waitForInput(){
 
     //вывод всех входящих данных на семисегментник
     if(inputData.substring(0, 5) == "/segm"){   currentMode = 201;}      
-    
-    if(inputData.substring(0, 4) == "/btn"){  currentMode = 202;} 
 
     if(inputData.substring(0, 5) == "/btna"){ currentMode = 203;} 
+
+    if(inputData.substring(0, 4) == "/mic"){  currentMode = 204;} 
 
     if(inputData.substring(0, 4) == "/ref"){   
       byte rate = inputData.substring(5,7).toInt();
@@ -62,16 +57,10 @@ void waitForInput(){
 }
 
 #include "controlByButtons.h";
+controlByButtons buttonControl;
 
 void loop(){  
-  waitForInput();  
-
-  if(currentMode == 202){    
-    if(btnOK.poll()){ Serial.println("OK");}
-    if(btnPLUS.poll()){ Serial.println("plus");}
-    if(btnMINUS.poll()){ Serial.println("minus");}
-    if(btnSET.poll()){ Serial.println("set");}    
-  }
+  waitForInput();    
 
   if(currentMode == 203){
     mainIndicator.sendData(String(analogRead(0)));
@@ -84,7 +73,7 @@ void loop(){
     mainIndicator.setDot(0, 0);
   }
       
-  pollButtons();  
+  buttonControl.pollButtons();  
   clock();
   mainIndicator.dynamicIndication();
 }
