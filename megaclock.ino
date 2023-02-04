@@ -1,11 +1,13 @@
 #include "sevenSegment.h";
 #include "analogButton.h";
+#include "tumbler.h";
 
 sevenSegment mainIndicator;
 analogButton btnOK(0, 1023);
 analogButton btnPLUS(0, 933);
 analogButton btnMINUS(0, 856);
 analogButton btnSET(0, 791);
+tumbler tmblrAlarmEnabled(1);
 
 byte hour, minute, second;
 byte currentMode; 
@@ -59,6 +61,8 @@ void waitForInput(){
   }
 }
 
+#include "controlByButtons.h";
+
 void loop(){  
   waitForInput();  
 
@@ -66,27 +70,21 @@ void loop(){
     if(btnOK.poll()){ Serial.println("OK");}
     if(btnPLUS.poll()){ Serial.println("plus");}
     if(btnMINUS.poll()){ Serial.println("minus");}
-    if(btnSET.poll()){ Serial.println("set");}
-    
+    if(btnSET.poll()){ Serial.println("set");}    
   }
 
   if(currentMode == 203){
     mainIndicator.sendData(String(analogRead(0)));
+  }     
+
+  if(tmblrAlarmEnabled.poll()){    
+    mainIndicator.setDot(0, 1);
+  }
+  else{
+    mainIndicator.setDot(0, 0);
   }
       
-  if(currentMode == 0){
-    /*if(btnOK.poll()){ mainIndicator.sendData("OK");}
-    if(btnPLUS.poll()){ mainIndicator.sendData("plus");}
-    if(btnMINUS.poll()){ mainIndicator.sendData("min");}
-    if(btnSET.poll()){ mainIndicator.sendData("set");}*/
-   
-    if(btnOK.poll()){ currentMode = 1; btnOK.ignoreHolding = true;}     
-  } 
-
-  if(currentMode == 1){
-    if(btnOK.poll()){ currentMode = 0; btnOK.ignoreHolding = true;}     
-  }
-  
+  pollButtons();  
   clock();
   mainIndicator.dynamicIndication();
 }
@@ -97,30 +95,33 @@ void clock(){
   static int collectedDifference;
 
   if(difference > 999){    
-    clockTimer = millis();
+    clockTimer = millis();    
     second++;    
 
-    collectedDifference += (difference - 1000);
+    /*collectedDifference += (difference - 1000);
     if(collectedDifference > 1333){
       second++;
       collectedDifference = 0;
-    }
+    }*/
 
-    if(second > 59){ minute++; second = 0;}
+    if(second > 59){ minute++; second = 0; clockTimer += 41;}
     if(minute > 59){ hour++; minute = 0;}
     if(hour > 23){ hour = 0;}   
     String formattedTime; formattedTime.reserve(4);    
-    if(currentMode == 0){
-      formattedTime  += addTimeZero(hour); formattedTime += addTimeZero(minute);    
-      mainIndicator.sendData(formattedTime);      
-      mainIndicator.setDot(2, 2);
-    }
-    else if(currentMode == 1){
-      formattedTime  += addTimeZero(minute); formattedTime += addTimeZero(second);    
-      mainIndicator.sendData(formattedTime);      
-      mainIndicator.setDot(2, 1);
-    }
-    
+    if(currentMode == 0){ showFormattedTime(false); mainIndicator.setDot(2, 2);}
+    else if(currentMode == 1){  showFormattedTime(true); mainIndicator.setDot(2, 1);}    
+  }
+}
+
+void showFormattedTime(bool mmss){
+  String formattedTime; formattedTime.reserve(4);   
+  if(!mmss){ //hhmm
+    formattedTime  += addTimeZero(hour); formattedTime += addTimeZero(minute);    
+    mainIndicator.sendData(formattedTime);          
+  }
+  else{
+    formattedTime  += addTimeZero(minute); formattedTime += addTimeZero(second);    
+    mainIndicator.sendData(formattedTime);          
   }
 }
 String addTimeZero(byte number){

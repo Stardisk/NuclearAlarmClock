@@ -91,8 +91,10 @@ class sevenSegment{
 
     //вкл/выкл десятичные точки
     void setDot(byte dotNumber, byte state){
-      if(state < 2){ dots[dotNumber] = state;}
-      else{ dots[dotNumber] = (dots[dotNumber]) ? 0:1;    }
+      if(dots[dotNumber] != state){
+        if(state < 2){ dots[dotNumber] = state;}
+        else{ dots[dotNumber] = (dots[dotNumber]) ? 0:1;    }
+      }      
     }    
     
     //получение данных с микроконтроллера для их отрисовки на экранчике. Посылается единожды и будет крутиться на экранчике, пока не придут новые данные
