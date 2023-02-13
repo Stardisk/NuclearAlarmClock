@@ -1,8 +1,8 @@
-#include "sevenSegment.h";
+#include "sevenSegment74.h";
 #include "analogButton.h";
 #include "tumbler.h";
 
-sevenSegment mainIndicator;
+sevenSegment74 mainIndicator(4,3,2);
 tumbler tmblrAlarmEnabled(1);
 
 byte hour, minute, second;
@@ -26,8 +26,8 @@ void waitForInput(){
     inputData.reserve(64);
     byte incomingByte = 0;
     while(Serial.available() > 0){
-      incomingByte = Serial.read();
-      if(incomingByte != 10) { inputData += char(incomingByte);}
+      incomingByte = Serial.read();      
+      if(incomingByte != 13 and incomingByte != 10) { inputData += char(incomingByte);}
     }    
 
     //вывод всех входящих данных на семисегментник
@@ -83,18 +83,11 @@ void loop(){
 
 void clock(){
   static uint32_t clockTimer;
-  int difference = millis() - clockTimer;
-  static int collectedDifference;
+  int difference = millis() - clockTimer;  
 
   if(difference > 999){    
     clockTimer = millis();    
-    second++;    
-
-    /*collectedDifference += (difference - 1000);
-    if(collectedDifference > 1333){
-      second++;
-      collectedDifference = 0;
-    }*/
+    second++;       
 
     if(second > 59){ minute++; second = 0; clockTimer += 41;}
     if(minute > 59){ hour++; minute = 0;}
