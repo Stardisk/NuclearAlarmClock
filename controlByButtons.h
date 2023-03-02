@@ -8,25 +8,25 @@ class controlByButtons{
 
   public:
     void pollButtons(){      
-      if(currentMode == 0){      poll_0();}  //РЕЖИМ ПО УМОЛЧАНИЮ - отображение часов      
-      if(currentMode == 1){      poll_1();}  //РЕЖИМ ОТОБРАЖЕНИЯ минуты:секунды
-      if(currentMode == 2){      poll_2();}  //режим отображения: главное меню
-    }
+      switch(currentMode){
+        case 0: poll_0(); break;  //РЕЖИМ ПО УМОЛЧАНИЮ - отображение часов      
+        case 1: poll_1(); break;  //РЕЖИМ ОТОБРАЖЕНИЯ минуты:секунды
+        case 2: poll_2(); break;  //РЕЖИМ ОТОБРАЖЕНИЯ: главное меню    
+        case 3: poll_3(); break;  //НАСТРОЙКА БУДИЛЬНИКА: показ текущего настроенного времени
+        case 4: poll_4(); break;  //НАСТРОЙКА БУДИЛЬНИКА: редактирование часов
+        case 5: poll_5(); break;  //НАСТРОЙКА БУДИЛЬНИКА: редактирование минут        
+      }   
+    }   
 
   private:
-    String menuList[4] = {"alarmset", "battery", "radiation", "glitches"};
+    String menuList[4] = {"alarmset", "radiation", "sd audio player", "internet radio player"};
+    byte menuModes[4] = {3,10,15,20};
     byte menuItem = 0;
 
-    void showMenuItemName(){      
-      if(menuItem == 255){ menuItem = 3;}
-      else if(menuItem > 3){ menuItem = 0;}    
+    void showMenuItemName(){            
       mainIndicator.setDot(2,0);
       mainIndicator.sendData(menuList[menuItem]);
-    }
-
-    void alarmset(){
-      mainIndicator.sendData("INSIDE");
-    }
+    }   
 
     void poll_0(){
       //кнопка SET вызывает меню
@@ -85,11 +85,13 @@ class controlByButtons{
       if(btnPLUS.poll()){ 
         menuItem++;        
         btnPLUS.ignoreHolding = true;
+        if(menuItem > 5){ menuItem = 0;}
         showMenuItemName();
       }
       if(btnMINUS.poll()){ 
         menuItem--;        
-        btnPLUS.ignoreHolding = true;
+        btnMINUS.ignoreHolding = true;
+        if(menuItem > 99){ menuItem = 3;}
         showMenuItemName();
       }
       //кнопка МЕНЮ возвращает обратно
@@ -99,9 +101,27 @@ class controlByButtons{
       }
       //кнопка ОК закидывает внутрь пункта
       if(btnOK.poll()){
-      //  menuList[menuItem]();
+        currentMode = menuModes[menuItem];
+        btnOK.ignoreHolding = true;
       }
     }
+
+    void poll_3(){
+      if(btnSET.poll()){ currentMode = 2; showMenuItemName(); btnSET.ignoreHolding = true; }
+      if(btnOK.poll()){ currentMode = 4; btnOK.ignoreHolding = true;}
+    }
+
+    void poll_4(){
+      if(btnPLUS.poll()){ alarmHour++; if(alarmHour > 23){ alarmHour = 0;} btnPLUS.ignoreHolding = true;}
+      if(btnMINUS.poll()){ alarmHour--; if(alarmHour > 23){ alarmHour = 23;} btnMINUS.ignoreHolding = true;}
+      if(btnOK.poll()){ currentMode = 5; btnOK.ignoreHolding = true;}
+    }
+
+    void poll_5(){
+      if(btnPLUS.poll()){ alarmMinute++; if(alarmMinute > 59){ alarmMinute = 0;} btnPLUS.ignoreHolding = true;}
+      if(btnMINUS.poll()){ alarmMinute--; if(alarmMinute > 59){ alarmMinute = 59;} btnMINUS.ignoreHolding = true;}
+      if(btnOK.poll()){ currentMode = 3; btnOK.ignoreHolding = true;}
+    }    
 };
 
 

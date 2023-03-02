@@ -6,6 +6,7 @@ class analogButton{
     byte pin;
     int pressingTime;
     int debrisTime = 100;
+    bool reactedOnce = false;
 
   public:
     int currentButtonLevel;
@@ -33,7 +34,14 @@ class analogButton{
             else{ 
               pressingTime = millis() - timeWhenPressed;
               if(pressingTime > debrisTime){
-                return pressingTime - debrisTime;
+                if(!reactedOnce){
+                    reactedOnce = true;
+                    timeWhenPressed = millis();
+                    return debrisTime + 10;
+                }
+                else{
+                  return pressingTime - debrisTime;
+                }                
               }
             }
           }
@@ -45,6 +53,7 @@ class analogButton{
           timeWhenPressed = 0;          
           pressingTime = 0;
           ignoreHolding = false;
+          reactedOnce = false;
         }
         return 0;
       }   
