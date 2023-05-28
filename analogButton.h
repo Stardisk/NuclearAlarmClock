@@ -22,7 +22,7 @@ class analogButton{
       //кнопка нажата
       if(currentButtonLevel > 50){            
         //смотрим, чтоб уровень кнопки не превышал максимальный для нее, но не был меньше, чем ее максимальный минус 10
-        if((currentButtonLevel <= maxAnalogLevelOnPress) and (currentButtonLevel > (maxAnalogLevelOnPress - 10))){
+        if((currentButtonLevel <= maxAnalogLevelOnPress+5) and (currentButtonLevel > (maxAnalogLevelOnPress - 20))){
           //нет времени нажатия - кнопку нажали только что
           if(!timeWhenPressed){
             timeWhenPressed = millis();
@@ -33,6 +33,7 @@ class analogButton{
             if(ignoreHolding){ return 0;} // запрошено игнорирование дальнейшего удерживания
             else{ 
               pressingTime = millis() - timeWhenPressed;
+              
               if(pressingTime > debrisTime){
                 if(!reactedOnce){
                     reactedOnce = true;
@@ -57,5 +58,6 @@ class analogButton{
         }
         return 0;
       }   
+      return 0;
     }    
 };
