@@ -1,3 +1,8 @@
+/*
+USE MODIFIED LEDCONTROL FROM ARCHIVE!!
+ALSO USE RADSENS 1.0.3 FROM ARCHIVE!!
+*/
+
 #include <radSens1v2.h>
 #include "Math.h"
 #include "analogButton.h"
@@ -9,6 +14,8 @@
 #include "AudioFileSourceBuffer.h"
 #include <SPI.h>
 #include "ESP8266WiFi.h"
+#include <WiFiUdp.h>
+#include <NTPClient.h>
 #include "LedControl.h"
 
 static const uint8_t _D0   = 3;
@@ -44,10 +51,13 @@ byte _symbolsArr[101] = {0b00000000,
 bool dots[4];
 bool rsActive = false;
 String rsData, staticData;    
-//LedControl LC = LedControl(_D4,_D3,_D2,1);
+
 LedControl LC = LedControl(_D2,1);
 
 ClimateGuard_RadSens1v2 radSens(RS_DEFAULT_I2C_ADDRESS);
+
+WiFiUDP ntpUDP;
+NTPClient timeClient(ntpUDP, "pool.ntp.org", 10800);
 
 //tumbler tmblrAlarmEnabled(_D9, true);
 
@@ -153,6 +163,12 @@ void setup(){
 
   WiFi.setAutoReconnect(true);
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
+
+  timeClient.begin();
+  timeClient.update();
+  hour = timeClient.getHours();
+  minute = timeClient.getMinutes();
+  second = timeClient.getSeconds();
 
   //загрузка настроек будильника
   File alarmSet = SD.open("/settings/alarm.txt");
