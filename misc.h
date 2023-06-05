@@ -2,7 +2,8 @@
 void saveAlarmSettings(){  
   SD.remove("/settings/alarm.txt");
   File alSets = SD.open("/settings/alarm.txt", FILE_WRITE);
-  alSets.print(alarmHour); alSets.print("|"); alSets.print(alarmMinute); alSets.print("|"); alSets.print(alarmSound);
+  alSets.print(alarmHour); alSets.print("|"); alSets.print(alarmMinute); alSets.print("|"); alSets.print(alarmSound); alSets.print("|"); alSets.print(alarmEnabled);
+  alSets.close();
 }
 //отладочная функция приема данных с последовательного порта
 void waitForInput(){

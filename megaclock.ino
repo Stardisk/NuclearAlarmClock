@@ -6,7 +6,6 @@ ALSO USE RADSENS 1.0.3 FROM ARCHIVE!!
 #include <radSens1v2.h>
 #include "Math.h"
 #include "analogButton.h"
-#include "tumbler.h"
 #include "AudioFileSourceSD.h"
 #include "AudioOutputI2SNoDAC.h"
 #include "AudioGeneratorMP3.h"
@@ -35,7 +34,6 @@ static const uint8_t _D13  = 14;
 static const uint8_t _D14  = 4;
 static const uint8_t _D15  = 5;
 
-
 byte _symbolsArr[101] = {0b00000000,
   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, // [1-10]
   0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, 0b00000000, // [11-20]
@@ -52,14 +50,10 @@ bool dots[4];
 bool rsActive = false;
 String rsData, staticData;    
 
-LedControl LC = LedControl(_D2,1);
-
+LedControl LC = LedControl(_D8,1);
 ClimateGuard_RadSens1v2 radSens(RS_DEFAULT_I2C_ADDRESS);
-
-WiFiUDP ntpUDP;
-NTPClient timeClient(ntpUDP, "pool.ntp.org", 10800);
-
-//tumbler tmblrAlarmEnabled(_D9, true);
+uint32_t lastTimeMoveSensor = 0;
+bool LCoff = false;
 
 File audioDir;
 AudioFileSourceSD *source = NULL;
@@ -69,9 +63,8 @@ AudioFileSourceICYStream *stream;
 AudioFileSourceBuffer *buff;
 
 byte hour, minute, second;
-byte alarmHour = 7, alarmMinute = 0, alarmSound = 0;
+byte alarmHour = 7, alarmMinute = 0, alarmSound = 0, alarmEnabled = 0;
 bool alarmTriggered = false;
-bool blink = false;
 byte currentMode; //ID текущего режима. от него зависит показания индикатора и реакция кнопок.
 
 bool isPlayingMusic = false; bool isOnlineMusic = false;
@@ -120,9 +113,34 @@ void sendData(String inputData){
 }
 //******** end of indicator functions ***************
 
+uint32_t lastUpdateTime;
+void updateTime(){
+  WiFiUDP ntpUDP;
+  NTPClient timeClient(ntpUDP, "pool.ntp.org", 10800);
+  timeClient.begin();
+  timeClient.update();
+  if(timeClient.getHours() != 0 and timeClient.getMinutes()!= 0 and timeClient.getSeconds()!=0){
+    hour = timeClient.getHours();
+    minute = timeClient.getMinutes();
+    second = timeClient.getSeconds();
+  }  
+  lastUpdateTime = millis();
+}
+
+const int preallocateBufferSize = 2048;
+const int preallocateCodecSize = 29192;
+void *preallocateBuffer = NULL;
+void *preallocateCodec = NULL;
 void setup(){
   Serial.begin(115200);
   delay(100);    
+
+  preallocateBuffer = malloc(preallocateBufferSize);
+  preallocateCodec = malloc(preallocateCodecSize);
+  Serial.println("mem "+ String(ESP.getFreeHeap()));
+
+ // pinMode(_D9, OUTPUT); //тут предполагается открывать мосфет
+  pinMode(_D2, INPUT);  //датчик движения
 
   LC.shutdown(0,false);
   LC.setIntensity(0,8);
@@ -130,12 +148,8 @@ void setup(){
   sendData("INIT");
   
   output = new AudioOutputI2SNoDAC();
-  decoder = new AudioGeneratorMP3();
-  source = new AudioFileSourceSD();
 
-  while(!radSens.radSens_init()){
-    sendData("rad-");
-  }
+  while(!radSens.radSens_init()){sendData("rad-");}
   Serial.println("rad init");
 
   //подключение SD-карты
@@ -151,24 +165,15 @@ void setup(){
   Serial.setDebugOutput(true);
   
   //WiFi.disconnect(true);
-  //ESP.eraseConfig();
-
-  
+  //ESP.eraseConfig();  
   
   WiFi.persistent(false);
   WiFi.begin("Stardisk2.4", "84C9D3A1");     
-  while(WiFi.status() != WL_CONNECTED){
-    delay(10);
-  }    
-
+  while(WiFi.status() != WL_CONNECTED){ delay(100);}    
   WiFi.setAutoReconnect(true);
   WiFi.setSleepMode(WIFI_NONE_SLEEP);
 
-  timeClient.begin();
-  timeClient.update();
-  hour = timeClient.getHours();
-  minute = timeClient.getMinutes();
-  second = timeClient.getSeconds();
+  updateTime();
 
   //загрузка настроек будильника
   File alarmSet = SD.open("/settings/alarm.txt");
@@ -178,14 +183,15 @@ void setup(){
       if(currentSymbol == 124){
         switch(currentParam){
           case 0: {alarmHour = alarmParam.toInt(); break;}
-          case 1: {alarmMinute = alarmParam.toInt(); break;}          
+          case 1: {alarmMinute = alarmParam.toInt(); break;}     
+          case 2: {alarmSound = alarmParam.toInt(); break;}     
         }        
         alarmParam = "";
         currentParam++;
       }
       else{   alarmParam += char(currentSymbol);}
   }
-  if(currentParam == 2) { alarmSound = alarmParam.toInt();} 
+  if(currentParam == 3) { alarmEnabled = alarmParam.toInt();} 
 
   Serial.println("alarm loaded");
 
@@ -197,36 +203,44 @@ void setup(){
     else if(currentSymbol != 10){
       radioStations[stationId] += char(currentSymbol);
     }    
-  }  
-  Serial.println(radioStations[0]);
-  Serial.println(radioStations[1]);   
-
-  
+  }    
 }
 
 #include "misc.h"
 #include "controlByButtons.h"
 controlByButtons buttonControl;
 static uint32_t pollBtnsTimer;
+
 void loop(){ 
   if(currentMode == 203){ sendData(String(analogRead(0)));}   
   if(currentMode == 205){ sendData(String(WiFi.status()));}       
-
-  /*if(tmblrAlarmEnabled.poll()){    
-    setDot(0, 1);
-  }
-  else{
-    setDot(0, 0);
-  }*/
+  //опрос кнопок
   if(millis() - pollBtnsTimer > 10){
     pollBtnsTimer = millis();
     buttonControl.pollButtons();
     waitForInput();  
   }
+  //обновление времени через интернет
+  if(millis() - lastUpdateTime > 3600000){ updateTime();}
+
   calculatingTime();
-  if(isPlayingMusic){ playMusic();}  
+  if(isPlayingMusic){ 
+    if(isOnlineMusic){playMusicFromInternet();}
+    else {playMusic();}
+  }  
 
   if(rsActive){ runningString(rsData);}
+
+  if(digitalRead(_D2) == HIGH){
+    lastTimeMoveSensor = millis();
+    if(LCoff) {LC.shutdown(0,false); LCoff = false;}
+  }
+  else{
+    if(millis() - lastTimeMoveSensor > 600000 and !LCoff){
+      LC.shutdown(0, true);
+      LCoff = true;
+    }
+  }
 }
 
 void showFormattedTime(byte mode){
@@ -237,11 +251,7 @@ void showFormattedTime(byte mode){
     //mmss
     case 1: { formattedTime  += addTimeZero(minute, false); formattedTime += addTimeZero(second, false); break;}
     //alarm hhmm
-    case 2: { formattedTime  += addTimeZero(alarmHour, true); formattedTime += addTimeZero(alarmMinute, false); break;}    
-    //alarm blink hh
-    case 3: { formattedTime += "  "; formattedTime += addTimeZero(alarmMinute, false); break;}
-    //alarm blink mm
-    case 4: { formattedTime  += addTimeZero(alarmHour, true); formattedTime += "  ";  break;}    
+    case 2: { formattedTime  += addTimeZero(alarmHour, true); formattedTime += addTimeZero(alarmMinute, false); break;} 
   }    
   sendData(formattedTime);      
 }
@@ -261,6 +271,14 @@ void calculatingTime(){
 
   if(difference > 999){    
     clockTimer = millis();    
+    /*Serial.println(currentMode);
+    if(decoder){Serial.println("decoder " + String(decoder->isRunning()));}
+    else{ Serial.println("no decoder");}*/
+
+    if(alarmEnabled){ setDot(0, 1);}
+    else{ setDot(0, 0);}
+
+    Serial.println("mem "+ String(ESP.getFreeHeap()));
     second++;           
 
     if(second > 59){ 
@@ -270,7 +288,7 @@ void calculatingTime(){
     if(minute > 59){ hour++; minute = 0;}
     if(hour > 23){ hour = 0;}   
     if(hour == alarmHour and minute == alarmMinute and !alarmTriggered){
-        //if(tmblrAlarmEnabled.poll()){  alarmTriggered = true; alarm();}
+        if(alarmEnabled){  alarmTriggered = true; alarm();}
     }    
     String formattedTime; formattedTime.reserve(4);    
     if(currentMode == 0 or currentMode == 10 or currentMode == 15 or currentMode == 20){ showFormattedTime(0); setDot(2, 2);}
@@ -282,44 +300,40 @@ void calculatingTime(){
 void indicateSomethingElse(){
   switch(currentMode){
     //показ будильника
-    case 3:{  showFormattedTime(2); setDot(2,1); break;}
+    case 3:{  showFormattedTime(2); setDot(2,1); setDot(3,0); setDot(1,0); break;}
     //настройка будильника: мигание ЧАСОВ
-    case 4:{  
-      if(!blink){ showFormattedTime(3); blink = true;}
-      else{ showFormattedTime(2); blink = false;} break;
-    }
+    case 4:{  showFormattedTime(2); setDot(3, 2); setDot(1,0); break;}
     //настройка будильника: мигание МИНУТ
-    case 5:{
-      if(!blink){ showFormattedTime(4); blink = true;}
-      else{ showFormattedTime(2); blink = false;} break;
-    }    
+    case 5:{  showFormattedTime(2); setDot(1, 2); setDot(3,0); break;}    
     //показ уровня радиации
+    case 13:
     case 14:{           
       int radLevel;
-      radLevel = ceil(radSens.getRadIntensyDynamic());
+      radLevel = (currentMode == 13) ? ceil(radSens.getRadIntensyDynamic()) : ceil(radSens.getRadIntensyStatic());
       if(radLevel > 9999){ sendData("----");}
       else{
           if(radLevel > 1000){ setDot(2,1); setDot(3,0);}
           else{ setDot(3,1); setDot(2,0);}
           if(radLevel > 99){ sendData(String(radLevel));}
           else{ sendData(String("0" + String(radLevel)));}          
-      }
-      
+      }      
       break;
     }
   }
 }
 
 void playMusic(){  
-  if (decoder->isRunning()) {
+  if (decoder && decoder->isRunning()) {
     if (!decoder->loop()) decoder->stop();
   } else {
-    if(isOnlineMusic){ return;}
+    if(!decoder){ decoder = new AudioGeneratorMP3(preallocateCodec, preallocateCodecSize);}
+    if(!source){ source = new AudioFileSourceSD();}
 
     if(currentMode == 10 and !alarmSound){ 
       source->close();
       source->open("__alarm.mp3");
       decoder->begin(source, output);
+      powerHW104(true);      
     }
     else{
       File file = audioDir.openNextFile();
@@ -330,6 +344,7 @@ void playMusic(){
           if (source->open(file.name())) {           
             Serial.printf_P(PSTR("Playing '%s' from SD card...\n"), file.name());
             decoder->begin(source, output);
+            powerHW104(true);
           }
           else {
             Serial.printf_P(PSTR("Error opening '%s'\n"), file.name());
@@ -341,27 +356,43 @@ void playMusic(){
   }
 }
 
+char selectedRS[96];
 void playMusicFromInternet(){    
-  //const String selectedRS = radioStations[currentRadioStation];
-  //const char *url = &radioStations[currentRadioStation];
-  // stream = new AudioFileSourceICYStream(radioStations[currentRadioStation]);
-  const char *url = "http://orangepi.stardisk.xyz/radio/radio2.php";
-  //const char *url = "http://nashe1.hostingradio.ru:8000/ultra-128.mp3";
-  stream = new AudioFileSourceICYStream(url);
-  stream->RegisterMetadataCB(MDCallback, (void*)"ICY");
-  buff = new AudioFileSourceBuffer(stream, 2048);
-  buff->RegisterStatusCB(StatusCallback, (void*)"buffer");  
-  decoder->begin(buff, output);    
+  if (decoder && decoder->isRunning()) {
+    if (!decoder->loop()){
+      stopPlayingMusicFromInternet();
+    }
+  } 
+  else{
+    if(!decoder){decoder = new AudioGeneratorMP3(preallocateCodec, preallocateCodecSize);}
+    else{
+      stopPlayingMusicFromInternet();
+      decoder = new AudioGeneratorMP3(preallocateCodec, preallocateCodecSize);
+    }
+    
+    radioStations[currentRadioStation].toCharArray(selectedRS, radioStations[currentRadioStation].length()+1);    
+    stream = new AudioFileSourceICYStream(selectedRS);
+    stream->RegisterMetadataCB(MDCallback, (void*)"ICY");
+    buff = new AudioFileSourceBuffer(stream, preallocateBuffer, preallocateBufferSize);
+    buff->RegisterStatusCB(StatusCallback, (void*)"buffer");  
+    decoder->begin(buff, output);    
+    powerHW104(true);
+    Serial.println(selectedRS);
+    delay(1000);
+  }  
+}
+
+void stopPlayingMusicFromInternet(){
+  if(decoder) {decoder->stop(); delete decoder; decoder = NULL;}
+  if(buff){ buff->close(); delete buff; buff = NULL;}
+  if(stream){ stream->close(); delete stream; stream = NULL;}
 }
 
 void alarm(){
   currentMode = 10;
   output->SetGain(2.5);                  
   switch (alarmSound){
-    case 0:{      
-      source->close();      
-      isPlayingMusic = true; break;      
-    }
+    case 0:
     case 1:{
       isPlayingMusic = true; break;
     }
@@ -370,4 +401,9 @@ void alarm(){
       isPlayingMusic = true; break;
     }
   }
+}
+
+void powerHW104(bool active){
+  /*if(active){ digitalWrite(_D9, HIGH);}
+  else{ digitalWrite(_D9, LOW);}*/
 }

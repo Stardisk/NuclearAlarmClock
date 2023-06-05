@@ -18,17 +18,18 @@ class controlByButtons{
         case 6: poll_6(); break;  //НАСТРОЙКА БУДИЛЬНИКА: предложение выбрать аудио
         case 7: poll_7(); break;  //НАСТРОЙКА БУДИЛЬНИКА: выбор аудио
         case 10: poll_10(); break;//БУДИЛЬНИК СРАБОТАЛ
-        case 14: poll_14(); break; //ПОКАЗ РАДИАЦИИ
+        case 13: poll_13(); break; //ПОКАЗ РАДИАЦИИ (ТЕКУЩЕЕ ЗНАЧЕНИЕ)
+        case 14: poll_14(); break; //ПОКАЗ РАДИАЦИИ (СРЕДНЕЕ ЗНАЧЕНИЕ)
         case 15: poll_15(); break;//режим проигрывания музыки с SD
         case 16: poll_16(); break;//показ уровня громкости
         case 20: poll_20(); break;//воспроизведение интернет-радио
-       // case 21: poll_21(); break;//переключение станций интернет-радио
+        case 21: poll_21(); break;//переключение станций интернет-радио
       }   
     }   
 
   private:
     String menuList[4] = {"alarmset", "radiation", "sd audio player", "internet radio player"};
-    byte menuModes[4] = {3,14,15,20};
+    byte menuModes[4] = {3,13,15,20};
     byte menuItem = 0;
 
     String alarmSoundSelect[3] = {"default", "sd card", "internet radio"};
@@ -106,7 +107,7 @@ class controlByButtons{
         showMenuItemName();
       }
       //кнопка МЕНЮ возвращает обратно
-      if(btnSET.poll()){
+      if(btnSET.poll()){        
         currentMode = 0;
         btnSET.ignoreHolding = true;
       }
@@ -126,14 +127,40 @@ class controlByButtons{
       if(btnOK.poll()){ currentMode = 4; btnOK.ignoreHolding = true;}
       //кнопка ПЛЮС переводит в режим выбора звука для будильника
       if(btnPLUS.poll()) {currentMode = 6; sendData("select sound"); btnPLUS.ignoreHolding = true;}
+      if(btnMINUS.poll()){ 
+        if(alarmEnabled){ alarmEnabled = 0;}
+        else {alarmEnabled = 1;}
+        saveAlarmSettings();
+        btnMINUS.ignoreHolding = true;
+      }
     }
     //НАСТРОЙКА БУДИЛЬНИКА: редактирование часов
     void poll_4(){
       //Кнопка SET выходит из редактирования без сохранения
       if(btnSET.poll()){ currentMode = 3; btnSET.ignoreHolding = true;}
       //кнопки ПЛЮС и МИНУС меняют значение часов      
-      if(btnPLUS.poll()){ alarmHour++; if(alarmHour > 23){ alarmHour = 0;} btnPLUS.ignoreHolding = true;}
-      if(btnMINUS.poll()){ alarmHour--; if(alarmHour > 23){ alarmHour = 23;} btnMINUS.ignoreHolding = true;}
+      if(btnPLUS.poll()){ 
+        int pressingTime = btnPLUS.poll();      
+        static int prevPressingTime;
+        if(pressingTime > prevPressingTime+50){
+          prevPressingTime = pressingTime;
+          alarmHour++;
+          if(alarmHour > 23){ alarmHour = 0;}          
+          showFormattedTime(2);
+        }      
+        else{ if(pressingTime < 50) {prevPressingTime = 0;}}
+      }
+      if(btnMINUS.poll()){ 
+        int pressingTime = btnMINUS.poll();      
+        static int prevPressingTime;
+        if(pressingTime > prevPressingTime+50){
+          prevPressingTime = pressingTime;
+          alarmHour--;
+          if(alarmHour > 23){ alarmHour = 0;}          
+          showFormattedTime(2);
+        }      
+        else{ if(pressingTime < 50) {prevPressingTime = 0;}}
+      }
       //кнопка ОК сохраняет значение и переводит на редактирование минут
       if(btnOK.poll()){ currentMode = 5; btnOK.ignoreHolding = true;}
     }
@@ -142,8 +169,28 @@ class controlByButtons{
       //Кнопка SET выходит из редактирования без сохранения
       if(btnSET.poll()){ currentMode = 3; btnSET.ignoreHolding = true;}
       //кнопки ПЛЮС и МИНУС меняют значение минут
-      if(btnPLUS.poll()){ alarmMinute++; if(alarmMinute > 59){ alarmMinute = 0;} btnPLUS.ignoreHolding = true;}
-      if(btnMINUS.poll()){ alarmMinute--; if(alarmMinute > 59){ alarmMinute = 59;} btnMINUS.ignoreHolding = true;}
+      if(btnPLUS.poll()){
+        int pressingTime = btnPLUS.poll();      
+        static int prevPressingTime;
+        if(pressingTime > prevPressingTime+50){
+          prevPressingTime = pressingTime;
+          alarmMinute++;
+          if(alarmMinute > 59){ alarmMinute = 0;}
+          showFormattedTime(2);
+        }      
+        else{ if(pressingTime < 50) {prevPressingTime = 0;}}
+      }
+      if(btnMINUS.poll()){ 
+        int pressingTime = btnMINUS.poll();      
+        static int prevPressingTime;
+        if(pressingTime > prevPressingTime+50){
+          prevPressingTime = pressingTime;
+          alarmMinute--;
+          if(alarmMinute > 59){ alarmMinute = 59;}
+          showFormattedTime(2);
+        }      
+        else{ if(pressingTime < 50) {prevPressingTime = 0;}}
+      }
       //кнопка ОК сохраняет значение и переводит на режим отображения времени будильника
       if(btnOK.poll()){ currentMode = 3; btnOK.ignoreHolding = true; saveAlarmSettings();}
     }    
@@ -181,23 +228,44 @@ class controlByButtons{
         currentMode = 0;
         isPlayingMusic = false;
         decoder->stop();        
+        powerHW104(false);
         btnSET.ignoreHolding = true;
       }      
     }
-    //ПОКАЗ РАДИАЦИИ
+    //ПОКАЗ РАДИАЦИИ (ТЕКУЩЕЕ ЗНАЧЕНИЕ)
+    void poll_13(){
+      if(btnSET.poll()){
+        currentMode = 0;
+        setDot(3, 0);
+        btnSET.ignoreHolding = true;
+      }
+      if(btnOK.poll()){
+        currentMode = 14;
+        btnOK.ignoreHolding = true;
+      }
+    }
+    //ПОКАЗ РАДИАЦИИ (СРЕДНЕЕ ЗНАЧЕНИЕ)
     void poll_14(){
       if(btnSET.poll()){
         currentMode = 0;
         setDot(3, 0);
         btnSET.ignoreHolding = true;
       }
+      if(btnOK.poll()){
+        currentMode = 13;
+        btnOK.ignoreHolding = true;
+      }
     }
     //ВКЛЮЧЕНИЕ АУДИО С КАРТЫ ПАМЯТИ
     void poll_15(){
       //кнопка SET отключает воспроизведение
-      if(btnSET.poll()){
-        decoder->stop();
-        if(isOnlineMusic and buff){ buff->close();}
+      if(btnSET.poll()){                
+        if(isOnlineMusic){ stopPlayingMusicFromInternet();}
+        else{ 
+          decoder->stop(); delete decoder; decoder = NULL;
+          source->close(); delete source; source = NULL;
+        }
+        powerHW104(false);
         isPlayingMusic = false;
         isOnlineMusic = false;
         currentMode = 0;
@@ -207,19 +275,25 @@ class controlByButtons{
       if(btnPLUS.poll()){                
         if(volume < 3){ volume += 0.1;}        
         float volumeToDisp = volume * 10;
-        sendData(String((int)(volume * 10)));
+        sendData(String("VL"+addTimeZero((int)(volume * 10), true)));
         output->SetGain(float(volume));
         btnPLUS.ignoreHolding = true;
-        currentMode = 16;
+        currentMode = 16;        
       }
 
       if(btnMINUS.poll()){                      
         if(volume > 0){ volume -= 0.1;}        
         float volumeToDisp = volume * 10;  
-        sendData(String((int)(volume * 10)));
+        sendData(String("VL"+addTimeZero((int)(volume * 10), true)));
         output->SetGain(float(volume));
         btnMINUS.ignoreHolding = true;
         currentMode = 16;
+      }
+
+      if(btnOK.poll() and !isOnlineMusic){
+        decoder->stop();
+        source->close();
+        btnOK.ignoreHolding = true;
       }
     }
     //ПОКАЗ ГРОМКОСТИ воспроизведения
@@ -227,44 +301,48 @@ class controlByButtons{
       static uint32_t returnTo15;
       if(!returnTo15){ returnTo15 = millis()+2000;}
       else{
-        if(millis() < returnTo15){
-          poll_15();
-        }
+        if(millis() < returnTo15){ poll_15();}
         else{
-          returnTo15 = 0;
-          currentMode = 15;
+          if(isOnlineMusic){ currentMode = 20;}
+          else{ currentMode = 15;}
+          returnTo15 = 0;          
         }
       }
     }
 
     void poll_20(){
-      poll_15();
+      poll_15();      
 
-     /* if(btnOK.poll()){
-        currentMode = 21; sendData("st "+currentRadioStation); btnOK.ignoreHolding = true;
-      }*/
+      if(btnOK.poll()){
+        sendData("st "+String(currentRadioStation)); 
+        currentMode = 21; 
+        btnOK.ignoreHolding = true;
+      }
     }
 
-    /*void poll_21(){
+    void poll_21(){
+      if(btnSET.poll()){
+        btnSET.ignoreHolding = true;
+        currentMode = 20;
+      }
       if(btnPLUS.poll()){
         btnPLUS.ignoreHolding = true;
         currentRadioStation++;
-        if(!radioStations[currentRadioStation]){ currentRadioStation = 0;}
-        sendData("st "+currentRadioStation);
-        playMusicFromInternet();
-        
+        if(currentRadioStation > 9){ currentRadioStation = 0;}
+        sendData("st "+String(currentRadioStation));                
       }
       if(btnMINUS.poll()){
         btnPLUS.ignoreHolding = true;
         currentRadioStation--;
-        if(!radioStations[currentRadioStation]){ currentRadioStation = 0;}
-        sendData("st "+currentRadioStation);
-        playMusicFromInternet();
+        if(currentRadioStation > 250){ currentRadioStation = 9;}
+        sendData("st "+String(currentRadioStation));        
       }
       if(btnOK.poll()){
+        stopPlayingMusicFromInternet();
+        playMusicFromInternet();
         currentMode = 20; btnOK.ignoreHolding = true;
       }
-    }*/
+    }
     
 };
 
